@@ -64,3 +64,7 @@ link_directories(/usr/local/lib/)
 add_executable(explorer src/explorer.cpp )
 target_link_libraries(explorer ${catkin_LIBRARIES} casadi)
 add_dependencies(explorer ${${PROJECT_NAME}_EXPORTED_TARGETS})
+
+add_executable(mapping src/mapping.cpp)
+target_link_libraries(mapping ${catkin_LIBRARIES} casadi)
+add_dependencies(mapping ${${PROJECT_NAME}_EXPORTED_TARGETS})

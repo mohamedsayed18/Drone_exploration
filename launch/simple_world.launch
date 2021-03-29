@@ -1,0 +1,87 @@
+<?xml version="1.0"?>
+<launch>
+	<param name="robot_description" textfile="$(find drone_sim)/include/fixed_joint.urdf" />
+
+	<!-- fixed_joint-->
+
+	<node pkg="robot_state_publisher" name="drone_fixed_joints_pub" type="robot_state_publisher" output="screen" respawn="true">
+		<param name="publish_frequency" value="50.0"/>
+	</node>
+
+    <!-- Posix SITL environment launch script -->
+    <!-- launches PX4 SITL, Gazebo environment, and spawns vehicle -->
+    <!-- vehicle pose -->
+    <arg name="x" default="0"/>
+    <arg name="y" default="0"/>
+    <arg name="z" default="0"/>
+    <arg name="R" default="0"/>
+    <arg name="P" default="0"/>
+    <arg name="Y" default="0"/>
+    <!-- vehicle model and world -->
+    <arg name="est" default="ekf2"/>
+    <arg name="vehicle" default="iris_rplidar"/>
+    <arg name="world" default="$(find drone_explorer)/worlds/cube.world"/>
+    
+    
+    <arg name="sdf" default="$(find drone_sim)/models/$(arg vehicle)/$(arg vehicle).sdf"/>
+    <env name="PX4_SIM_MODEL" value="$(arg vehicle)" />
+    <env name="PX4_ESTIMATOR" value="$(arg est)" />
+
+    <!-- gazebo configs -->
+    <arg name="gui" default="true"/>
+    <arg name="debug" default="false"/>
+    <arg name="verbose" default="true"/>
+    <arg name="paused" default="false"/>
+    <arg name="respawn_gazebo" default="false"/>
+    <!-- PX4 configs -->
+    <arg name="interactive" default="true"/>
+    <!-- PX4 SITL -->
+    <arg unless="$(arg interactive)" name="px4_command_arg1" value="-d"/>
+    <arg     if="$(arg interactive)" name="px4_command_arg1" value=""/>
+    <node name="sitl" pkg="px4" type="px4" output="screen"
+        args="$(find px4)/ROMFS/px4fmu_common -s etc/init.d-posix/rcS $(arg px4_command_arg1)" required="true"/>
+
+    <!-- Gazebo sim -->
+
+   <include file="$(find gazebo_ros)/launch/empty_world.launch">
+        <arg name="gui" value="$(arg gui)"/>
+        <arg name="world_name" value="$(arg world)"/>
+        <arg name="debug" value="$(arg debug)"/>
+        <arg name="verbose" value="$(arg verbose)"/>
+        <arg name="paused" value="$(arg paused)"/>
+        <arg name="respawn_gazebo" value="$(arg respawn_gazebo)"/>
+    </include>
+
+    <node name="$(anon vehicle_spawn)" pkg="gazebo_ros" type="spawn_model" output="screen" args="-sdf -file $(arg sdf) -model $(arg vehicle) -x $(arg x) -y $(arg y) -z $(arg z) -R $(arg R) -P $(arg P) -Y $(arg Y)"/>
+
+    <include file="$(find mavros_link)/launch/px4_sim.launch"/>
+
+  <arg name="max_vel" value="0.4"/>
+  <arg name="min_vel" value="-0.4"/>
+  <arg name="max_avoidance_distance" value="0.8"/>
+  <arg name="min_avoidance_distance" value="0.4"/>
+  <arg name="map_resolution" value="0.2"/>
+  <arg name="maximum_acceptable_error" value="0.05"/>
+  <arg name="max_vel_bspline" value="0.3"/>
+  <arg name="max_acce_bspline" value="0.2"/>
+
+<!--Octomap server-->
+  <node pkg="tf" name="world_map_tf" type="static_transform_publisher" args="0 0 0 0 0 0 world map 100" />
+
+  <node pkg="octomap_server" type="octomap_server_node" name="octomap_server">
+                <param name="resolution" value="$(arg map_resolution)" />
+                <param name="frame_id" type="string" value="map" />
+                <param name="sensor_model/hit" value="0.8" />
+                <param name="sensor_model/miss" value="0.3" />
+                <param name="sensor_model/max_range" value="20.0" />
+                <param name="occupancy_min_z" value="0.8" />
+                <param name="occupancy_max_z" value="10.0" />
+                <param name="pointcloud_min_z" value="0.8" />
+                <param name="pointcloud_max_z" value="10.0" />
+
+                <remap from="cloud_in" to="/r200/depth/points" />
+  </node>
+  
+  <include file="$(find state_machine)/launch/take_off.launch"/>
+    
+</launch>

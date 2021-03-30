@@ -3,7 +3,7 @@ Frontier based exploration
 
 TODO:
 * [done] send a single point
-* send three point(manually) and make the drone follow
+* [done]send three point(manually) and make the drone follow
 simple waypoint publisher
 */
 #include <explorer.h>

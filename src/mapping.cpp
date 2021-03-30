@@ -6,32 +6,39 @@
 * using get size on the first node we get the dimensions of the map
 */
 #include <mapping.h>
+#include <explorer.h>
 
-static octomap::OcTree* ourmap;
+// Global variables, TODO: make a clean structure
+static octomap::OcTree* ourmap; // octree map
+ros::Publisher waypoints_pub;   //publisher
+
+
+void publish_point(octomap::point3d p)
+{
+    nav_msgs::Path mypath;
+    geometry_msgs::PoseStamped waypoints[1];
+
+    waypoints[0].pose.position.x = p.x();
+    waypoints[0].pose.position.y = p.y();
+    waypoints[0].pose.position.z = p.z();
+
+    mypath.poses.push_back(waypoints[0]);
+
+    waypoints_pub.publish(mypath);
+}
 
 void setOctomapFromBinaryMsg(const octomap_msgs::Octomap& msg) {
+    
     ourmap = dynamic_cast<octomap::OcTree*>(octomap_msgs::binaryMsgToMap(msg));
-    /*
-    double maxX, maxY, maxZ;
-    ourmap->getMetricSize(maxX, maxY, maxZ);   
-    octomap::point3d maxBb = octomap::point3d(maxX, maxY, maxZ);
-    
-    std::cout << "metric max " << maxBb.x() << "," << maxBb.y() << "," << maxBb.z() << std::endl;
-    */
-
-    // metric max 0.8,1,1.6
-    //iterate over leaf nodes
-    
     float dist = 0;
     octomap::point3d farpoint;
+
     for (octomap::OcTree::leaf_iterator it = ourmap->begin_leafs();
         it != ourmap->end_leafs(); ++it) 
        {
            if(!ourmap->isNodeOccupied(*it))
            {
                 octomap::point3d freepoint = it.getCoordinate();
-                //std::cout << "Point: " << freepoint.x() << "," << freepoint.y() << "," << freepoint.z() << std::endl;
-                //get the farest free point
                 if (abs((freepoint.x()*freepoint.x()) + (freepoint.y()*freepoint.y()) 
                     + (freepoint.z()*freepoint.z())) > dist)
                 {
@@ -40,35 +47,33 @@ void setOctomapFromBinaryMsg(const octomap_msgs::Octomap& msg) {
                     farpoint = freepoint;
                 }
            }
-           //std::cout<< "Node center: " << it.getCoordinate();
-           //std::cout<< " value: " << it->getValue()<< "\n";
-           //std::cout<< "size of node " << it.getSize() << "\n";
-           //std::cout<< ourmap->isNodeOccupied(*it) <<"\n";
-           //std::cout<< (ourmap->getRoot()).getSize();
        }
     std::cout << "Point: " << farpoint.x() << "," << farpoint.y() << "," << farpoint.z() << std::endl;
+    publish_point(farpoint);
     std::cout<<"End of tree" << "\n";
-    //iterate over all nodes
-    //octomap::OcTreeNode * node = ourmap->getRoot();
-    /*
-    std::cout<< "the size of the map" << ourmap->size() << std::endl;
-    for (octomap::OcTree::tree_iterator it = ourmap->begin_tree(); 
-        it != ourmap->end_tree(); ++it)
-    {
-        std::cout<< it->getValue() <<std::endl;
-    }
-    
-    std::cout<<"End of tree" << "\n";
-    */
 }
 
 int main(int argc, char** argv)
 {
     ros::init(argc, argv, "mapping_node");
     ros::NodeHandle n;
+    ros::Rate loop_rate(0.03);
 
-    ros::Subscriber sub = n.subscribe("/octomap_binary", 1000, setOctomapFromBinaryMsg);
-    ros::spin();
+    waypoints_pub = n.advertise<nav_msgs::Path>("/planner/waypoints", 1000); // publisher
+
+    //ros::Subscriber sub = n.subscribe("/octomap_binary", 1000, setOctomapFromBinaryMsg);
+    
+    //create a client
+    ros::ServiceClient client = n.serviceClient<octomap_msgs::GetOctomap>("octomap_binary");
+    octomap_msgs::GetOctomap srv;
+    while (ros::ok())
+    {
+        bool succeded = client.call(srv);
+        if (succeded)
+            setOctomapFromBinaryMsg(srv.response.map);
+        loop_rate.sleep();
+    }
+    
 
     return 0;
 }

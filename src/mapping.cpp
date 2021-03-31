@@ -16,15 +16,25 @@ ros::Publisher waypoints_pub;   //publisher
 void publish_point(octomap::point3d p)
 {
     nav_msgs::Path mypath;
-    geometry_msgs::PoseStamped waypoints[1];
-
-    waypoints[0].pose.position.x = p.x();
-    waypoints[0].pose.position.y = p.y();
-    waypoints[0].pose.position.z = p.z();
-
-    mypath.poses.push_back(waypoints[0]);
-
+    geometry_msgs::PoseStamped waypoints[3];
+    const int no_points = 1;
+    for(int i=0; i<no_points; i++)
+    {
+        waypoints[i].pose.position.x = p.x();
+        waypoints[i].pose.position.y = p.y();
+        if (p.z() < 0.6)
+        {
+            waypoints[i].pose.position.z = 1;
+        }
+        else
+        {
+            waypoints[i].pose.position.z = p.z();
+        }
+        mypath.poses.push_back(waypoints[i]);
+        std::cout << "Point" << p.x() << "," << p.y() << "," << p.z() << "added"<< std::endl;
+    }
     waypoints_pub.publish(mypath);
+    std::cout << "Path Published" << std::endl;
 }
 
 void setOctomapFromBinaryMsg(const octomap_msgs::Octomap& msg) {
@@ -57,7 +67,7 @@ int main(int argc, char** argv)
 {
     ros::init(argc, argv, "mapping_node");
     ros::NodeHandle n;
-    ros::Rate loop_rate(0.03);
+    ros::Rate loop_rate(0.2);
 
     waypoints_pub = n.advertise<nav_msgs::Path>("/planner/waypoints", 1000); // publisher
 

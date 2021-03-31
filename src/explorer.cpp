@@ -14,7 +14,7 @@ int main(int argc, char** argv)
   ros::init(argc, argv, "explorer_node");
   ros::NodeHandle n;
   ros::Publisher waypoints_pub = n.advertise<nav_msgs::Path>("/planner/waypoints", 1000);
-  ros::Rate loop_rate(0.03);
+  ros::Rate loop_rate(1);
 
   nav_msgs::Path mypath;
   geometry_msgs::PoseStamped waypoints[3];
@@ -40,7 +40,7 @@ int main(int argc, char** argv)
     ROS_INFO("data published");
 
     ros::spinOnce();
-    loop_rate.sleep();
+    //loop_rate.sleep();
   }
 
   

@@ -1,9 +1,11 @@
 /*
 * Know the size of the the map
 * and if the node is occupied or not
-* getSize() the size of each node is 0.2, which is equal to resolution
+* getSize() the size of each leaf node is 0.2, which is equal to resolution
 * map->isNodeOccupied(*it)check if the node is occupied or not
 * using get size on the first node we get the dimensions of the map
+* begin_leafs_bbx(min_point, max_point), this iterate leafs in a certain bound
+* can I get a leaf not at the last depth
 */
 #include <mapping.h>
 #include <explorer.h>
@@ -11,6 +13,69 @@
 // Global variables, TODO: make a clean structure
 static octomap::OcTree* ourmap; // octree map
 ros::Publisher waypoints_pub;   //publisher
+
+void loop_nodes(octomap::OcTree* map)
+{
+    std::cout << "Size "<< map->size() << std::endl;
+    std::cout << "Depth "<< map->getTreeDepth() << std::endl;
+    for (octomap::OcTree::tree_iterator it = map->begin_tree();
+        it != map->end_tree(); it++)
+    {
+       print(it.getCoordinate());
+       std::cout << "Depth " << it.getDepth() << std::endl;
+    }
+    
+}
+
+void loop_leafs(octomap::OcTree* map)
+{
+    for (octomap::OcTree::leaf_iterator it = map->begin_leafs();
+    it != map->end_leafs(); ++it) 
+    {
+        print(it.getCoordinate());
+        std::cout << "Depth " << it.getDepth() << std::endl;
+        /*
+        if(!map->isNodeOccupied(*it))
+        {
+            octomap::point3d freepoint = it.getCoordinate();
+            if (distance(freepoint, position) > dist)
+            {
+                dist = distance(freepoint, position);
+                farpoint = freepoint;
+            }
+        }
+        */
+    }
+}
+
+void loop_leafs_bbx(octomap::OcTree* map)
+{
+    octomap::point3d min_point(0, 0, 0);
+    octomap::point3d max_point(2000, 2000, 2000);
+
+    std::cout << "Size: "<< map->size() << std::endl;
+    std::cout << "Depth: "<< map->getTreeDepth() << std::endl;
+
+    for (octomap::OcTree::leaf_bbx_iterator it = map->begin_leafs_bbx(min_point, max_point);
+        it != map->end_leafs_bbx(); ++it)
+        {
+            print(it.getCoordinate());
+            std::cout << "Depth " << it.getDepth() << std::endl;
+        }
+}
+
+void print(octomap::point3d p, std::string title)
+{
+    std::cout << title << " " << p.x() << ", " << p.y() << ", " << p.z()<< std::endl;
+}
+void print(geometry_msgs::PoseStamped p)
+{
+    double x = p.pose.position.x;
+    double y = p.pose.position.y;
+    double z = p.pose.position.z;
+
+    std::cout << "Drone: " << x << ", " << y << ", " << z << std::endl; 
+}
 
 bool goal_reached(geometry_msgs::PoseStamped goal)
 {
@@ -84,9 +149,23 @@ geometry_msgs::PoseStamped publish_point(octomap::point3d p)
     return waypoints[0];
 }
 
-octomap::point3d setOctomapFromBinaryMsg(const octomap_msgs::Octomap& msg) {
-    
+octomap::point3d setOctomapFromBinaryMsg(const octomap_msgs::Octomap& msg) 
+{
     ourmap = dynamic_cast<octomap::OcTree*>(octomap_msgs::binaryMsgToMap(msg));
+    const octomap::point3d min_point(0.1, 0.1, 0.1);
+    octomap::point3d max_point(2, 2, 2);
+    //ourmap->setBBXMax(max_point);
+    //ourmap->bbxSet();
+    /*
+    octomap::point3d box_limits(3, 3, 3);
+    ourmap->setBBXMax(box_limits);  // the bounding box is half the value, expected
+    octomap::point3d bounds = ourmap->getBBXBounds();
+    print(bounds);
+    */
+    //loop_nodes(ourmap);
+    
+
+
     double dist = 0; //the maximum variable
     octomap::point3d farpoint;  //maximum point
 
@@ -95,9 +174,13 @@ octomap::point3d setOctomapFromBinaryMsg(const octomap_msgs::Octomap& msg) {
     geo_pose position = *(wwe);
     
     //TODO the leaf don't have to be the farest point, I should use bound boxes
-    for (octomap::OcTree::leaf_iterator it = ourmap->begin_leafs();
-        it != ourmap->end_leafs(); ++it) 
+    print(position);
+    loop_leafs(ourmap);
+    return max_point;
+    for (octomap::OcTree::leaf_bbx_iterator it = ourmap->begin_leafs_bbx(min_point, max_point);
+        it != ourmap->end_leafs_bbx(); ++it)
        {
+           print(it.getCoordinate());
            if(!ourmap->isNodeOccupied(*it))
            {
                 octomap::point3d freepoint = it.getCoordinate();
@@ -108,7 +191,7 @@ octomap::point3d setOctomapFromBinaryMsg(const octomap_msgs::Octomap& msg) {
                 }
            }
        }
-    std::cout << "Point: " << farpoint.x() << "," << farpoint.y() << "," << farpoint.z() << std::endl;
+    print(farpoint, "Far Point");
     return farpoint;
     //std::cout<<"End of tree" << "\n";
 }
@@ -134,22 +217,7 @@ int main(int argc, char** argv)
         if (succeded)
         {
             octomap::point3d g = setOctomapFromBinaryMsg(srv.response.map);
-            if (waypoints_pub.getNumSubscribers()>0)
-            {
-                geo_pose goal = publish_point(g);
-    
-                while (! goal_reached(goal))
-                {
-                    loop_rate.sleep();
-                    //std::cout << "Moving to the goal"<< std::endl;
-                }
-                std::cout << "goal reached"<<std::endl;
-                ros::shutdown();
-            }
-            else
-            {
-                std::cout << "No subscribers" << std::endl;
-            }
+            ros::shutdown();
         }
     }
     

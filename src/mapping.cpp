@@ -14,6 +14,56 @@
 static octomap::OcTree* ourmap; // octree map
 ros::Publisher waypoints_pub;   //publisher
 
+octomap::point3d_list check_neighbours(octomap::point3d p)
+{
+    std::cout << "check neighbours" << std::endl;
+    double octomap_res = 0.2;
+    octomap::point3d_list l;
+
+    for (double i = p.x()-octomap_res; i <= p.x()+octomap_res; i+=octomap_res)
+    {
+        for(double j = p.y()-octomap_res; j <= p.y()+octomap_res; j+=octomap_res)
+        {
+            if(i==p.x() && j== p.y()) continue;
+            l.push_back(octomap::point3d(i, j, p.z()));
+        }
+    }
+    std::cout << "check neighbours_done" << std::endl;
+    return l;
+    
+}
+
+octomap::point3d_list get_frontiers(octomap::OcTree map)
+{
+    octomap::point3d_list frontiers;
+
+    for (octomap::OcTree::leaf_iterator it = map.begin_leafs();
+    it != map.end_leafs(); ++it) 
+    {   
+        if(!map.isNodeOccupied(*it))   //check if the node is not occupied
+        {
+            octomap::point3d freepoint = it.getCoordinate();
+            octomap::point3d_list neighbours = check_neighbours(freepoint);
+            print(freepoint, "Free point ");
+            std::cout << "Number of neighbours " << neighbours.size() << std::endl;
+
+            int Nu_unknowns = 0; 
+            for(auto i=neighbours.begin(); i != neighbours.end(); i++)
+            {
+                if(!map.search(*i))  // if node is not found in the tree
+                {
+                    Nu_unknowns++;
+                }
+            }
+            if(Nu_unknowns>6)   //Nu_u
+            {
+                frontiers.push_back(freepoint);
+            }
+        }
+    }
+    return frontiers;
+}
+
 void loop_nodes(octomap::OcTree* map)
 {
     std::cout << "Size "<< map->size() << std::endl;
@@ -149,11 +199,52 @@ geometry_msgs::PoseStamped publish_point(octomap::point3d p)
     return waypoints[0];
 }
 
+void publish_point(geometry_msgs::PoseStamped p)
+{
+    nav_msgs::Path mypath;
+    mypath.poses.push_back(p);
+    waypoints_pub.publish(mypath);
+}
+void rotate()
+{
+    double start_angle = 45;    //increment angles
+    double inc_angle = 45;  //increment angles
+    geometry_msgs::PoseStamped waypoints[8];
+    
+    //waypoint.header.frame_id = "Rotate";
+
+    tf2::Quaternion angle;
+
+    for (int i = 0; i < 8; i++)
+    {
+        double rad_angle = angles::from_degrees(start_angle);
+        angle.setRPY(0, 0, rad_angle);
+        geometry_msgs::Quaternion myangle = tf2::toMsg(angle);
+        waypoints[i].pose.orientation = myangle;
+        start_angle += inc_angle;
+    }
+    
+
+}
+
+
 octomap::point3d setOctomapFromBinaryMsg(const octomap_msgs::Octomap& msg) 
 {
+    // Local points
+    const octomap::point3d min_point(-10, -10, 0);
+    octomap::point3d max_point(10, 10, 10);
+    octomap::point3d_list fron;
+
     ourmap = dynamic_cast<octomap::OcTree*>(octomap_msgs::binaryMsgToMap(msg));
-    const octomap::point3d min_point(0.1, 0.1, 0.1);
-    octomap::point3d max_point(2, 2, 2);
+
+    // Get the frontriers
+    fron = get_frontiers(*ourmap);
+    std::cout << "Number of frontiers" << fron.size() << std::endl;
+    for(auto i=fron.begin(); i != fron.end(); i++)
+    {
+        print(*i, "Frontier");
+    }
+    return *(fron.begin());
     //ourmap->setBBXMax(max_point);
     //ourmap->bbxSet();
     /*
@@ -163,6 +254,21 @@ octomap::point3d setOctomapFromBinaryMsg(const octomap_msgs::Octomap& msg)
     print(bounds);
     */
     //loop_nodes(ourmap);
+    // octree methods
+    std::cout << ourmap->getNumLeafNodes() << std::endl;
+    /*
+    ourmap->getUnknownLeafCenters(l, min_point, max_point);
+    for (auto i = l.begin(); i != l.end(); i++)
+    {
+        print(*i, "Uknown");
+    }
+    */
+
+    // create a new octree
+    octomap::OcTree mytree(0.2);
+    octomap::OcTree* global_tree = dynamic_cast<octomap::OcTree*>(octomap::AbstractOcTree::createTree("Global", 0.2));
+    std::cout << ourmap->getNumLeafNodes() << std::endl;
+
     
 
 

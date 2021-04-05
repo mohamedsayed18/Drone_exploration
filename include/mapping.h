@@ -2,6 +2,9 @@
 #define _DRONE_EXPLORER_H_
 
 #include <ros/ros.h>
+#include <angles/angles.h>
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <octomap/octomap.h>
 #include <octomap_msgs/conversions.h>
 #include <octomap_msgs/GetOctomap.h>

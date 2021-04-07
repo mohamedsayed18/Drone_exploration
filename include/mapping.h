@@ -13,6 +13,8 @@
 #include <iostream>
 #include <string>
 #include <std_msgs/Float64.h>
+#include <algorithm>
+#include <queue>
 
 #include <nav_msgs/Path.h>
 #include <geometry_msgs/PoseStamped.h>

@@ -7,6 +7,14 @@
 * begin_leafs_bbx(min_point, max_point), this iterate leafs in a certain bound
 * can I get a leaf not at the last depth
 */
+
+/* TODO
+Merge the step of finding frontier and clustering
+Learn how to do debug for ROS on VS code
+find neighbours using keys as follows:
+octomap::OcTreeKey k = ourmap->coordToKey(*i);
+std::cout << k[0] << " " << k[1]<< " " << k[2]<< std::endl;
+*/
 #include <mapping.h>
 #include <explorer.h>
 
@@ -14,8 +22,18 @@
 static octomap::OcTree* ourmap; // octree map
 ros::Publisher waypoints_pub;   //publisher
 
+bool operator== (const octomath::Vector3 v1, const octomath::Vector3 v2)
+{
+    return (v1.x()==v2.x() &&  v1.y()==v2.y() && v1.y()==v2.y());
+}
+
 octomap::point3d_list check_neighbours(octomap::point3d p)
 {
+    /*
+    TODO edit and use neighborkey = key;
+    neighborkey[0] +=1; // neighbor in pos. x-direction
+    OcTreeNode* result = octree.search(neighborkey);
+    */ 
     std::cout << "check neighbours" << std::endl;
     double octomap_res = 0.2;
     octomap::point3d_list l;
@@ -55,7 +73,7 @@ octomap::point3d_list get_frontiers(octomap::OcTree map)
                     Nu_unknowns++;
                 }
             }
-            if(Nu_unknowns>6)   //Nu_u
+            if(Nu_unknowns>0)   //Nu_u
             {
                 frontiers.push_back(freepoint);
             }
@@ -227,6 +245,41 @@ void rotate()
 
 }
 
+int make_clusters(octomap::point3d_list frontiers)
+{
+    octomap::point3d_list group;
+    octomap::point3d_list clusters;
+    int nu_clusters = 0;
+
+    while (!frontiers.empty())
+    {
+        nu_clusters++;
+        octomap::point3d f = frontiers.front(); //get the first element
+        frontiers.pop_front();  //remove the element from the list
+        std::queue<octomap::point3d> q;
+        q.push(f);  //add it to the queue;
+        while (!q.empty())
+        {
+            auto point = q.front();
+            q.pop();
+            octomap::point3d_list neighbours = check_neighbours(point); //get its neighbours
+            for(auto i=neighbours.begin(); i != neighbours.end(); i++)
+            {
+                auto it = std::find(frontiers.begin(), frontiers.end(), *i);
+                if(it != frontiers.end())
+                {
+                    q.push(*it);
+                    frontiers.erase(it);
+                }
+            }
+        }
+        
+
+    }
+    return nu_clusters;
+    
+}
+
 
 octomap::point3d setOctomapFromBinaryMsg(const octomap_msgs::Octomap& msg) 
 {
@@ -240,10 +293,19 @@ octomap::point3d setOctomapFromBinaryMsg(const octomap_msgs::Octomap& msg)
     // Get the frontriers
     fron = get_frontiers(*ourmap);
     std::cout << "Number of frontiers" << fron.size() << std::endl;
+
+    std::cout << make_clusters(fron);
+    /*
     for(auto i=fron.begin(); i != fron.end(); i++)
     {
         print(*i, "Frontier");
+        //octomap::OcTreeKey k = ourmap->coordToKey(*i);
+        //std::cout << k[0] << " " << k[1]<< " " << k[2]<< std::endl;
+        //std::cout << k.k << std::endl;
+        //octomap::OcTreeNode* n = ourmap->search(*i);
+
     }
+    */
     return *(fron.begin());
     //ourmap->setBBXMax(max_point);
     //ourmap->bbxSet();

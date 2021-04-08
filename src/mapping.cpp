@@ -245,38 +245,41 @@ void rotate()
 
 }
 
-int make_clusters(octomap::point3d_list frontiers)
+std::list<std::vector<octomap::point3d>> make_clusters(octomap::point3d_list frontiers)
 {
-    octomap::point3d_list group;
-    octomap::point3d_list clusters;
+    std::list<std::vector<octomap::point3d>> cluster;
+    
     int nu_clusters = 0;
 
     while (!frontiers.empty())
     {
+        
         nu_clusters++;
         octomap::point3d f = frontiers.front(); //get the first element
         frontiers.pop_front();  //remove the element from the list
-        std::queue<octomap::point3d> q;
-        q.push(f);  //add it to the queue;
+        std::vector<octomap::point3d> q;
+        std::vector<octomap::point3d> group;
+        q.push_back(f);  //add it to the queue;
+        group.push_back(f); //add it to the group;
         while (!q.empty())
         {
             auto point = q.front();
-            q.pop();
+            q.pop_back();
             octomap::point3d_list neighbours = check_neighbours(point); //get its neighbours
             for(auto i=neighbours.begin(); i != neighbours.end(); i++)
             {
                 auto it = std::find(frontiers.begin(), frontiers.end(), *i);
                 if(it != frontiers.end())
                 {
-                    q.push(*it);
+                    q.push_back(*it);
+                    group.push_back(*it);
                     frontiers.erase(it);
                 }
             }
         }
-        
-
+        cluster.push_back(group);
     }
-    return nu_clusters;
+    return cluster;
     
 }
 
@@ -294,7 +297,19 @@ octomap::point3d setOctomapFromBinaryMsg(const octomap_msgs::Octomap& msg)
     fron = get_frontiers(*ourmap);
     std::cout << "Number of frontiers" << fron.size() << std::endl;
 
-    std::cout << make_clusters(fron);
+    std::list<std::vector<octomap::point3d>> clusters = make_clusters(fron);
+    // Loop the clusters
+    std::cout << "number of clusters" << clusters.size() << std::endl;
+    int clu_size = 0;
+    for(auto it=clusters.begin(); it != clusters.end(); it++)
+    {
+        std::sort(it->begin(), it->end());
+        //std::cout << "Vector size" << it->size() << std::endl;
+        clu_size+= it->size();
+        int mid = it->size() / 2; //maybe a problem because of division
+        print(it->at(mid), "Centre of Cluster");
+    }
+    std::cout <<"Number of nodes in all clusters " << clu_size << std::endl;
     /*
     for(auto i=fron.begin(); i != fron.end(); i++)
     {

@@ -400,7 +400,22 @@ int main(int argc, char** argv)
         if (succeded)
         {
             octomap::point3d g = setOctomapFromBinaryMsg(srv.response.map);
-            ros::shutdown();
+            if (waypoints_pub.getNumSubscribers()>0)
+            {
+                geo_pose goal = publish_point(g);
+    
+                while (! goal_reached(goal))
+                {
+                    loop_rate.sleep();
+                    //std::cout << "Moving to the goal"<< std::endl;
+                }
+                std::cout << "goal reached"<<std::endl;
+                ros::shutdown();
+            }
+            else
+            {
+                std::cout << "No subscribers" << std::endl;
+            }
         }
     }
     

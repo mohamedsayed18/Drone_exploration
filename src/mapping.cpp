@@ -14,6 +14,10 @@ Learn how to do debug for ROS on VS code
 find neighbours using keys as follows:
 octomap::OcTreeKey k = ourmap->coordToKey(*i);
 std::cout << k[0] << " " << k[1]<< " " << k[2]<< std::endl;
+
+change return of make cluster to vector<vector>>
+
+check shared pointers, to avoid repetation
 */
 #include <mapping.h>
 #include <explorer.h>
@@ -145,11 +149,12 @@ void print(geometry_msgs::PoseStamped p)
     std::cout << "Drone: " << x << ", " << y << ", " << z << std::endl; 
 }
 
-bool goal_reached(geometry_msgs::PoseStamped goal)
+bool goal_reached(octomap::point3d goal)
 {
+    //TODO shared pointer repetation
     boost::shared_ptr<geometry_msgs::PoseStamped const> msg =  ros::topic::waitForMessage<geometry_msgs::PoseStamped>("/mavros/local_position/pose");
     geo_pose position =  *(msg);
-    double d = distance(position, goal);
+    double d = distance(goal, position);
     if (d < 0.5)
     {
         return true;
@@ -283,23 +288,15 @@ std::list<std::vector<octomap::point3d>> make_clusters(octomap::point3d_list fro
     
 }
 
-
-octomap::point3d setOctomapFromBinaryMsg(const octomap_msgs::Octomap& msg) 
+std::vector<octomap::point3d> get_candidates(std::list<std::vector<octomap::point3d>> clusters)
 {
-    // Local points
-    const octomap::point3d min_point(-10, -10, 0);
-    octomap::point3d max_point(10, 10, 10);
-    octomap::point3d_list fron;
-
-    ourmap = dynamic_cast<octomap::OcTree*>(octomap_msgs::binaryMsgToMap(msg));
-
-    // Get the frontriers
-    fron = get_frontiers(*ourmap);
-    std::cout << "Number of frontiers" << fron.size() << std::endl;
-
-    std::list<std::vector<octomap::point3d>> clusters = make_clusters(fron);
-    // Loop the clusters
-    std::cout << "number of clusters" << clusters.size() << std::endl;
+    /*
+    TODO: Maybe we do Mean or different way instead of centre 
+    input: list of clusters
+    return: centre of each cluster 
+    */
+    std::cout << "number of clusters " << clusters.size() << std::endl;
+    std::vector<octomap::point3d> centers;
     int clu_size = 0;
     for(auto it=clusters.begin(); it != clusters.end(); it++)
     {
@@ -308,75 +305,40 @@ octomap::point3d setOctomapFromBinaryMsg(const octomap_msgs::Octomap& msg)
         clu_size+= it->size();
         int mid = it->size() / 2; //maybe a problem because of division
         print(it->at(mid), "Centre of Cluster");
+        centers.push_back(it->at(mid));
     }
     std::cout <<"Number of nodes in all clusters " << clu_size << std::endl;
-    /*
-    for(auto i=fron.begin(); i != fron.end(); i++)
-    {
-        print(*i, "Frontier");
-        //octomap::OcTreeKey k = ourmap->coordToKey(*i);
-        //std::cout << k[0] << " " << k[1]<< " " << k[2]<< std::endl;
-        //std::cout << k.k << std::endl;
-        //octomap::OcTreeNode* n = ourmap->search(*i);
+    return centers;
+}
 
-    }
+octomap::point3d get_goal(std::vector<octomap::point3d> candidates, geo_pose position)
+{
+    /*Here we should assign the criteria and give cost of every candidate
+    some suggested criteria:
+    distance between the drone and this candidate
+    Distance To edge of the exploration area(expected area to explore when reach this point)
+    speed and angle desired by the drone to reach it
+    TODO we can use BFS or any other algorthim to find the closest, instead of eculidean distance..
+    we can also integrate it with path planner so we don't calculate the path twice
     */
-    return *(fron.begin());
-    //ourmap->setBBXMax(max_point);
-    //ourmap->bbxSet();
-    /*
-    octomap::point3d box_limits(3, 3, 3);
-    ourmap->setBBXMax(box_limits);  // the bounding box is half the value, expected
-    octomap::point3d bounds = ourmap->getBBXBounds();
-    print(bounds);
-    */
-    //loop_nodes(ourmap);
-    // octree methods
-    std::cout << ourmap->getNumLeafNodes() << std::endl;
-    /*
-    ourmap->getUnknownLeafCenters(l, min_point, max_point);
-    for (auto i = l.begin(); i != l.end(); i++)
-    {
-        print(*i, "Uknown");
-    }
-    */
+    double min_distance = 0; //the maximum variable
+    octomap::point3d closest_point;  //maximum point
 
-    // create a new octree
-    octomap::OcTree mytree(0.2);
-    octomap::OcTree* global_tree = dynamic_cast<octomap::OcTree*>(octomap::AbstractOcTree::createTree("Global", 0.2));
-    std::cout << ourmap->getNumLeafNodes() << std::endl;
-
-    
-
-
-    double dist = 0; //the maximum variable
-    octomap::point3d farpoint;  //maximum point
-
-    // those lines are repeated, subscribe to local_position/pose
-    boost::shared_ptr<geometry_msgs::PoseStamped const> wwe =  ros::topic::waitForMessage<geometry_msgs::PoseStamped>("/mavros/local_position/pose");
-    geo_pose position = *(wwe);
-    
-    //TODO the leaf don't have to be the farest point, I should use bound boxes
-    print(position);
-    loop_leafs(ourmap);
-    return max_point;
-    for (octomap::OcTree::leaf_bbx_iterator it = ourmap->begin_leafs_bbx(min_point, max_point);
-        it != ourmap->end_leafs_bbx(); ++it)
+   for(auto it = candidates.begin(); it != candidates.end(); it++)
+   {
+       if(distance(*it, position) < min_distance)
        {
-           print(it.getCoordinate());
-           if(!ourmap->isNodeOccupied(*it))
-           {
-                octomap::point3d freepoint = it.getCoordinate();
-                if (distance(freepoint, position) > dist)
-                {
-                    dist = distance(freepoint, position);
-                    farpoint = freepoint;
-                }
-           }
+           min_distance = distance(*it, position);
+           closest_point = *it;
        }
-    print(farpoint, "Far Point");
-    return farpoint;
-    //std::cout<<"End of tree" << "\n";
+   }
+   return closest_point;
+}
+
+octomap::OcTree setOctomapFromBinaryMsg(const octomap_msgs::Octomap& msg) 
+{
+    ourmap = dynamic_cast<octomap::OcTree*>(octomap_msgs::binaryMsgToMap(msg));
+    return *ourmap;
 }
 
 int main(int argc, char** argv)
@@ -399,18 +361,24 @@ int main(int argc, char** argv)
         bool succeded = client.call(srv);
         if (succeded)
         {
-            octomap::point3d g = setOctomapFromBinaryMsg(srv.response.map);
+            octomap::OcTree mymap = setOctomapFromBinaryMsg(srv.response.map);
             if (waypoints_pub.getNumSubscribers()>0)
             {
-                geo_pose goal = publish_point(g);
-    
+                octomap::point3d_list frontiers = get_frontiers(mymap);
+                std::list<std::vector<octomap::point3d>> clusters = make_clusters(frontiers);
+                std::vector<octomap::point3d> centers = get_candidates(clusters);
+
+                boost::shared_ptr<geometry_msgs::PoseStamped const> wwe =  ros::topic::waitForMessage<geometry_msgs::PoseStamped>("/mavros/local_position/pose");
+                geo_pose position = *(wwe);
+                octomap::point3d goal = get_goal(centers, position);
+                publish_point(goal);    //publish point 
                 while (! goal_reached(goal))
                 {
                     loop_rate.sleep();
                     //std::cout << "Moving to the goal"<< std::endl;
                 }
                 std::cout << "goal reached"<<std::endl;
-                ros::shutdown();
+                //ros::shutdown();
             }
             else
             {

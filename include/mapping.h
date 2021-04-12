@@ -18,12 +18,16 @@
 
 
 #include <nav_msgs/Path.h>
+#include <nav_msgs/Odometry.h>
 #include <geometry_msgs/PoseStamped.h>
 
 typedef geometry_msgs::PoseStamped geo_pose;
 
 double distance(geometry_msgs::PoseStamped a, geometry_msgs::PoseStamped b);
 double distance(octomap::point3d a, geometry_msgs::PoseStamped b);
+double distance(nav_msgs::Odometry a, octomap::point3d b);
+
 void print(octomap::point3d, std::string title = "3Dpoint");
+void print(geometry_msgs::PoseStamped p, std::string title = "Geo_point");
 
 #endif

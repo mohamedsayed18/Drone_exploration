@@ -140,31 +140,47 @@ void print(octomap::point3d p, std::string title)
 {
     std::cout << title << " " << p.x() << ", " << p.y() << ", " << p.z()<< std::endl;
 }
-void print(geometry_msgs::PoseStamped p)
+void print(geometry_msgs::PoseStamped p, std::string title)
 {
     double x = p.pose.position.x;
     double y = p.pose.position.y;
     double z = p.pose.position.z;
 
-    std::cout << "Drone: " << x << ", " << y << ", " << z << std::endl; 
+    std::cout << title << " " << x << ", " << y << ", " << z << std::endl;
+    //std::cout << "Drone: " << x << ", " << y << ", " << z << std::endl; 
 }
 
 bool goal_reached(octomap::point3d goal)
 {
     //TODO shared pointer repetation
-    boost::shared_ptr<geometry_msgs::PoseStamped const> msg =  ros::topic::waitForMessage<geometry_msgs::PoseStamped>("/mavros/local_position/pose");
-    geo_pose position =  *(msg);
-    double d = distance(goal, position);
-    if (d < 0.5)
+    boost::shared_ptr<nav_msgs::Odometry const> msg =  ros::topic::waitForMessage<nav_msgs::Odometry>("/planning/current_state");
+    nav_msgs::Odometry position =  *(msg);
+    
+    double d = distance(position, goal);
+    
+    if (d < 2)
     {
         return true;
     }
     else
     {
-        std::cout << "position" << position.pose.position.x << position.pose.position.y << position.pose.position.z << std::endl;
+        //std::cout << "position" << position.pose.position.x << position.pose.position.y << position.pose.position.z << std::endl;
         std::cout << "distance " << d << std::endl;
         return false;
     }
+}
+
+double distance(nav_msgs::Odometry a, octomap::point3d b)
+{
+    // return eculidan distance
+    double x = a.pose.pose.position.x - b.x();
+    double y = a.pose.pose.position.y - b.y();
+    double z = a.pose.pose.position.z - b.z();
+
+    double dist = pow(x, 2) + pow(y, 2) + pow(z, 2);
+    dist = sqrt(dist);
+
+    return dist;
 }
 
 double distance(geometry_msgs::PoseStamped a, geometry_msgs::PoseStamped b)
@@ -200,7 +216,7 @@ geometry_msgs::PoseStamped publish_point(octomap::point3d p)
     then publish it
     */
     nav_msgs::Path mypath;
-    geometry_msgs::PoseStamped waypoints[3];
+    geometry_msgs::PoseStamped waypoints[1];
     const int no_points = 1;
     for(int i=0; i<no_points; i++)
     {
@@ -215,19 +231,21 @@ geometry_msgs::PoseStamped publish_point(octomap::point3d p)
             waypoints[i].pose.position.z = p.z();
         }
         mypath.poses.push_back(waypoints[i]);
-        std::cout << "Point" << p.x() << "," << p.y() << "," << p.z() << " added"<< std::endl;
+        print(waypoints[i], "Point Added");
     }
     waypoints_pub.publish(mypath);
     std::cout << "Path Published" << std::endl;
     return waypoints[0];
 }
 
+/*
 void publish_point(geometry_msgs::PoseStamped p)
 {
     nav_msgs::Path mypath;
     mypath.poses.push_back(p);
     waypoints_pub.publish(mypath);
 }
+*/
 void rotate()
 {
     double start_angle = 45;    //increment angles
@@ -311,6 +329,30 @@ std::vector<octomap::point3d> get_candidates(std::list<std::vector<octomap::poin
     return centers;
 }
 
+octomap::point3d get_goal(std::vector<octomap::point3d> candidates, nav_msgs::Odometry position)
+{
+    /*Here we should assign the criteria and give cost of every candidate
+    some suggested criteria:
+    distance between the drone and this candidate
+    Distance To edge of the exploration area(expected area to explore when reach this point)
+    speed and angle desired by the drone to reach it
+    TODO we can use BFS or any other algorthim to find the closest, instead of eculidean distance..
+    we can also integrate it with path planner so we don't calculate the path twice
+    */
+    double min_distance = 0; //the maximum variable
+    octomap::point3d closest_point;  //maximum point
+
+   for(auto it = candidates.begin(); it != candidates.end(); it++)
+   {
+       if(distance(position, *it) > min_distance)
+       {
+           min_distance = distance(position, *it);
+           closest_point = *it;
+       }
+   }
+   return closest_point;
+}
+
 octomap::point3d get_goal(std::vector<octomap::point3d> candidates, geo_pose position)
 {
     /*Here we should assign the criteria and give cost of every candidate
@@ -326,7 +368,7 @@ octomap::point3d get_goal(std::vector<octomap::point3d> candidates, geo_pose pos
 
    for(auto it = candidates.begin(); it != candidates.end(); it++)
    {
-       if(distance(*it, position) < min_distance)
+       if(distance(*it, position) > min_distance)
        {
            min_distance = distance(*it, position);
            closest_point = *it;
@@ -343,6 +385,7 @@ octomap::OcTree setOctomapFromBinaryMsg(const octomap_msgs::Octomap& msg)
 
 int main(int argc, char** argv)
 {
+    bool first_time = true;
     ros::init(argc, argv, "mapping_node");
     ros::NodeHandle n;
     ros::Rate loop_rate(0.2);
@@ -368,13 +411,29 @@ int main(int argc, char** argv)
                 std::list<std::vector<octomap::point3d>> clusters = make_clusters(frontiers);
                 std::vector<octomap::point3d> centers = get_candidates(clusters);
 
-                boost::shared_ptr<geometry_msgs::PoseStamped const> wwe =  ros::topic::waitForMessage<geometry_msgs::PoseStamped>("/mavros/local_position/pose");
-                geo_pose position = *(wwe);
-                octomap::point3d goal = get_goal(centers, position);
+                //Get the glo
+                octomap::point3d goal;
+                if(first_time)
+                {
+                    boost::shared_ptr<geometry_msgs::PoseStamped const> d_pose =  ros::topic::waitForMessage<geometry_msgs::PoseStamped>("/mavros/local_position/pose");
+                    geo_pose position = *(d_pose);
+                    first_time = false;
+                    std::cout <<"First message got from current state" << std::endl;
+                    goal = get_goal(centers, position);
+                }
+                else
+                {
+                    //TODO I can check if the topic exsit 
+                    boost::shared_ptr<nav_msgs::Odometry const> p_pose =  ros::topic::waitForMessage<nav_msgs::Odometry>("/planning/current_state");
+                    nav_msgs::Odometry position = *(p_pose);
+                    std::cout <<"message got from current state" << std::endl;
+                    goal = get_goal(centers, position);
+                }
+                print(goal, "The next goal");
                 publish_point(goal);    //publish point 
                 while (! goal_reached(goal))
                 {
-                    loop_rate.sleep();
+                    //loop_rate.sleep();
                     //std::cout << "Moving to the goal"<< std::endl;
                 }
                 std::cout << "goal reached"<<std::endl;

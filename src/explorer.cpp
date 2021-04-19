@@ -8,35 +8,45 @@ simple waypoint publisher
 */
 #include <explorer.h>
 
+ros::Publisher waypoints_pub;   //publisher
+
+void trigger_rotate()
+{
+  //Create the path and set the header
+  nav_msgs::Path mypath;
+  mypath.header.frame_id = 'R';
+
+  const int no_points = 3;
+  geometry_msgs::PoseStamped waypoints[no_points];
+  
+  tf2::Quaternion angle;
+  double rad_angle = angles::from_degrees(90);
+  angle.setRPY(0, 0, rad_angle);
+  geometry_msgs::Quaternion myangle = tf2::toMsg(angle);
+
+  for(int i=0; i<no_points; i++)
+  {
+      waypoints[i].pose.orientation = myangle;
+      waypoints[i].pose.position.x = 3;
+      waypoints[i].pose.position.y = 3;
+      waypoints[i].pose.position.z = 3;      
+      mypath.poses.push_back(waypoints[i]);
+  }
+  
+  waypoints_pub.publish(mypath);  //publish the path
+}
 
 int main(int argc, char** argv)
 {
   ros::init(argc, argv, "explorer_node");
   ros::NodeHandle n;
-  ros::Publisher waypoints_pub = n.advertise<nav_msgs::Path>("/planner/waypoints", 1000);
-  ros::Rate loop_rate(1);
-
-  nav_msgs::Path mypath;
-  geometry_msgs::PoseStamped waypoints[3];
-
-  waypoints[0].pose.position.x = -2;
-  waypoints[1].pose.position.x = -2.5;
-  waypoints[2].pose.position.x = -3;
-
-  waypoints[0].pose.position.z =4;
-  waypoints[1].pose.position.z =4;
-  waypoints[2].pose.position.z =4;
-
-  for (int i = 0; i < 3; i++)
-  {
-    mypath.poses.push_back(waypoints[i]);
-  }
-  
+  waypoints_pub = n.advertise<nav_msgs::Path>("/planner/waypoints", 1000);
+  ros::Rate loop_rate(1);  
 
   while (ros::ok())
   {
     loop_rate.sleep();  // Wait for 30 second
-    waypoints_pub.publish(mypath);
+    trigger_rotate();
     ROS_INFO("data published");
 
     ros::spinOnce();

@@ -1,5 +1,5 @@
-#ifndef _DRONE_EXPLORER_H_
-#define _DRONE_EXPLORER_H_
+#ifndef _DRONE_Mapping_H_
+#define _DRONE_Mapping_H_
 
 #include <ros/ros.h>
 #include <angles/angles.h>
@@ -13,6 +13,7 @@
 #include <iostream>
 #include <string>
 #include <std_msgs/Float64.h>
+#include <std_msgs/Bool.h>
 #include <algorithm>
 #include <queue>
 
@@ -20,6 +21,11 @@
 #include <nav_msgs/Path.h>
 #include <nav_msgs/Odometry.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <hagen_msgs/PoseCommand.h>
+
+//#include <explorer.h>
+
+int world_wide= 4;
 
 typedef geometry_msgs::PoseStamped geo_pose;
 

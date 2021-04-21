@@ -25,6 +25,13 @@ check shared pointers, to avoid repetation
 // Global variables, TODO: make a clean structure
 static octomap::OcTree* ourmap; // octree map
 ros::Publisher waypoints_pub;   //publisher
+ros::Publisher myrotate, trigger_pub;   //publisher
+void reg_trigger()
+{
+    hagen_msgs::PoseCommand r;
+    r.header.frame_id = "rotate";
+    trigger_pub.publish(r);
+}
 
 bool operator== (const octomath::Vector3 v1, const octomath::Vector3 v2)
 {
@@ -391,6 +398,8 @@ int main(int argc, char** argv)
     ros::Rate loop_rate(0.2);
     
     waypoints_pub = n.advertise<nav_msgs::Path>("/planner/waypoints", 1000); // publisher
+    myrotate = n.advertise<nav_msgs::Path>("/planner/waypoints", 1000);
+    trigger_pub = n.advertise<hagen_msgs::PoseCommand>("/planning/pos_cmd", 1000);
 
     //create a client
     ros::ServiceClient client = n.serviceClient<octomap_msgs::GetOctomap>("octomap_binary");
@@ -407,6 +416,9 @@ int main(int argc, char** argv)
             octomap::OcTree mymap = setOctomapFromBinaryMsg(srv.response.map);
             if (waypoints_pub.getNumSubscribers()>0)
             {
+                trigger_rotate();
+                //reg_trigger();
+                ros::topic::waitForMessage<std_msgs::Bool>("/check/rotation");
                 octomap::point3d_list frontiers = get_frontiers(mymap);
                 std::list<std::vector<octomap::point3d>> clusters = make_clusters(frontiers);
                 std::vector<octomap::point3d> centers = get_candidates(clusters);
@@ -437,6 +449,10 @@ int main(int argc, char** argv)
                     //std::cout << "Moving to the goal"<< std::endl;
                 }
                 std::cout << "goal reached"<<std::endl;
+
+                // Do 360 rotation
+                //trigger_rotate();
+                //play();
                 //ros::shutdown();
             }
             else
@@ -445,7 +461,6 @@ int main(int argc, char** argv)
             }
         }
     }
-    
 
     return 0;
 }

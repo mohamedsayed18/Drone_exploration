@@ -61,10 +61,12 @@ include_directories(/usr/local/include/)
 link_directories(/usr/local/lib/)
 
 # TODO casadi not needed
-add_executable(explorer src/explorer.cpp )
-target_link_libraries(explorer ${catkin_LIBRARIES} casadi)
-add_dependencies(explorer ${${PROJECT_NAME}_EXPORTED_TARGETS})
+# The explorer executable
+#add_executable(explorer src/explorer.cpp )
+#target_link_libraries(explorer ${catkin_LIBRARIES} casadi)
+#add_dependencies(explorer ${${PROJECT_NAME}_EXPORTED_TARGETS})
 
-add_executable(mapping src/mapping.cpp)
+add_executable(mapping src/mapping.cpp src/explorer.cpp)
+#add_executable(mapping src/mapping.cpp)
 target_link_libraries(mapping ${catkin_LIBRARIES} casadi)
 add_dependencies(mapping ${${PROJECT_NAME}_EXPORTED_TARGETS})

@@ -8,10 +8,10 @@ simple waypoint publisher
 */
 #include <explorer.h>
 
-ros::Publisher waypoints_pub;   //publisher
 
 void trigger_rotate()
-{
+{ 
+  
   //Create the path and set the header
   nav_msgs::Path mypath;
   mypath.header.frame_id = 'R';
@@ -33,14 +33,15 @@ void trigger_rotate()
       mypath.poses.push_back(waypoints[i]);
   }
   
-  waypoints_pub.publish(mypath);  //publish the path
+  myrotate.publish(mypath);  //publish the path
 }
 
+/*
 int main(int argc, char** argv)
 {
   ros::init(argc, argv, "explorer_node");
   ros::NodeHandle n;
-  waypoints_pub = n.advertise<nav_msgs::Path>("/planner/waypoints", 1000);
+  waypoints_pub = n.advertise<nav_msgs::Path>("/planner/waypoints", 1000);  //change to rottate_pub
   ros::Rate loop_rate(1);  
 
   while (ros::ok())
@@ -56,3 +57,4 @@ int main(int argc, char** argv)
   
   return 0;
 }
+*/

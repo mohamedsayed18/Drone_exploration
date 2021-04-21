@@ -9,4 +9,8 @@
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
+extern ros::Publisher myrotate;   //publisher
+void trigger_rotate();
+//int multiple_trial;
+
 #endif

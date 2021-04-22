@@ -15,7 +15,7 @@ void trigger_rotate()
   //Create the path and set the header
   nav_msgs::Path mypath;
   mypath.header.frame_id = 'R';
-
+/*
   const int no_points = 3;
   geometry_msgs::PoseStamped waypoints[no_points];
   
@@ -32,7 +32,7 @@ void trigger_rotate()
       waypoints[i].pose.position.z = 3;      
       mypath.poses.push_back(waypoints[i]);
   }
-  
+*/  
   myrotate.publish(mypath);  //publish the path
 }
 

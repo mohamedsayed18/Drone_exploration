@@ -28,8 +28,27 @@ ros::Publisher waypoints_pub;   //publisher
 ros::Publisher myrotate, trigger_pub;   //publisher
 void reg_trigger()
 {
+    /*
+    TODO I think it will be a better idea to make this function set a global variable there
+    */
+    //trigger_rotate();// stop the fsm trajectory
+    std::cout << "reg_trigger" << std::endl;
+    boost::shared_ptr<geometry_msgs::PoseStamped const> now_pose =  ros::topic::waitForMessage<geometry_msgs::PoseStamped>("/mavros/local_position/pose");
+    geo_pose cur_pos = *(now_pose);
+    std::cout << "Pose got from mavros" << std::endl;
+
     hagen_msgs::PoseCommand r;
+
     r.header.frame_id = "rotate";
+/*
+    r.position.x = cur_pos.pose.position.x;
+    r.position.y = cur_pos.pose.position.y;
+    r.position.z = 2;
+
+    r.position.x = 3;
+    r.position.y = 3;
+    r.position.z = 3;
+*/
     trigger_pub.publish(r);
 }
 
@@ -45,7 +64,7 @@ octomap::point3d_list check_neighbours(octomap::point3d p)
     neighborkey[0] +=1; // neighbor in pos. x-direction
     OcTreeNode* result = octree.search(neighborkey);
     */ 
-    std::cout << "check neighbours" << std::endl;
+    //std::cout << "check neighbours" << std::endl;
     double octomap_res = 0.2;
     octomap::point3d_list l;
 
@@ -57,7 +76,7 @@ octomap::point3d_list check_neighbours(octomap::point3d p)
             l.push_back(octomap::point3d(i, j, p.z()));
         }
     }
-    std::cout << "check neighbours_done" << std::endl;
+    //std::cout << "check neighbours_done" << std::endl;
     return l;
     
 }
@@ -409,27 +428,36 @@ int main(int argc, char** argv)
     while (ros::ok())
     {
         std::cout << "Call the service" << std::endl;
-        ros::service::waitForService("octomap_binary"); //wait for the service to be available 
+        ros::service::waitForService("octomap_binary"); //wait for the service to be available
+        
         bool succeded = client.call(srv);
         if (succeded)
         {
+            std::cout << "Octomap service found" << std::endl;
             octomap::OcTree mymap = setOctomapFromBinaryMsg(srv.response.map);
             if (waypoints_pub.getNumSubscribers()>0)
             {
                 trigger_rotate();
                 //reg_trigger();
                 ros::topic::waitForMessage<std_msgs::Bool>("/check/rotation");
+/*
+                trigger_rotate();
+                reg_trigger();
+*/
                 octomap::point3d_list frontiers = get_frontiers(mymap);
                 std::list<std::vector<octomap::point3d>> clusters = make_clusters(frontiers);
                 std::vector<octomap::point3d> centers = get_candidates(clusters);
-
-                //Get the glo
+                std::cout << "**Got the candidates**" << std::endl;
+                
+                //Get the drone position, and the goal
                 octomap::point3d goal;
                 if(first_time)
                 {
                     boost::shared_ptr<geometry_msgs::PoseStamped const> d_pose =  ros::topic::waitForMessage<geometry_msgs::PoseStamped>("/mavros/local_position/pose");
                     geo_pose position = *(d_pose);
-                    first_time = false;
+                    //first_time = false;   
+                    //TODO seem like the other it wait a lot to subscribe 
+                    // but it was working normally before when subscribe to the /planning/current_state
                     std::cout <<"First message got from current state" << std::endl;
                     goal = get_goal(centers, position);
                 }
@@ -452,6 +480,8 @@ int main(int argc, char** argv)
 
                 // Do 360 rotation
                 //trigger_rotate();
+                //reg_trigger();
+                //ros::topic::waitForMessage<std_msgs::Bool>("/check/rotation");
                 //play();
                 //ros::shutdown();
             }

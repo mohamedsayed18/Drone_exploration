@@ -18,6 +18,9 @@ std::cout << k[0] << " " << k[1]<< " " << k[2]<< std::endl;
 change return of make cluster to vector<vector>>
 
 check shared pointers, to avoid repetation
+
+//TODO
+Consider leaf nodes of size higher than resolution size
 */
 #include <mapping.h>
 #include <explorer.h>
@@ -76,24 +79,32 @@ octomap::point3d_list check_neighbours(octomap::point3d p)
             l.push_back(octomap::point3d(i, j, p.z()));
         }
     }
-    //std::cout << "check neighbours_done" << std::endl;
+
     return l;
     
 }
 
 octomap::point3d_list get_frontiers(octomap::OcTree map)
 {
-    octomap::point3d_list frontiers;
+    // The limits to search for in the map
+    octomap::point3d min_point(-10, -10, -10);
+    octomap::point3d max_point(10, 10, 10);
 
-    for (octomap::OcTree::leaf_iterator it = map.begin_leafs();
-    it != map.end_leafs(); ++it) 
+    octomap::point3d_list frontiers;    //list of frontiers
+
+    for (octomap::OcTree::leaf_bbx_iterator it = map.begin_leafs_bbx(min_point, max_point);
+    it != map.end_leafs_bbx(); ++it) 
     {   
-        if(!map.isNodeOccupied(*it))   //check if the node is not occupied
+        if(!map.isNodeOccupied(*it))   //check if the node is free
         {
             octomap::point3d freepoint = it.getCoordinate();
-            octomap::point3d_list neighbours = check_neighbours(freepoint);
             print(freepoint, "Free point ");
-            std::cout << "Number of neighbours " << neighbours.size() << std::endl;
+            std::cout << "size " << it.getSize() << std::endl;
+            
+
+            octomap::point3d_list neighbours = check_neighbours(freepoint);
+            
+            //std::cout << "Number of neighbours " << neighbours.size() << std::endl;
 
             int Nu_unknowns = 0; 
             for(auto i=neighbours.begin(); i != neighbours.end(); i++)
@@ -437,14 +448,10 @@ int main(int argc, char** argv)
             octomap::OcTree mymap = setOctomapFromBinaryMsg(srv.response.map);
             if (waypoints_pub.getNumSubscribers()>0)
             {
-                trigger_rotate();
-                //reg_trigger();
-                ros::topic::waitForMessage<std_msgs::Bool>("/check/rotation");
-/*
-                trigger_rotate();
-                reg_trigger();
-*/
+                //trigger_rotate();
+                //ros::topic::waitForMessage<std_msgs::Bool>("/check/rotation");
                 octomap::point3d_list frontiers = get_frontiers(mymap);
+                ros::shutdown();
                 std::list<std::vector<octomap::point3d>> clusters = make_clusters(frontiers);
                 std::vector<octomap::point3d> centers = get_candidates(clusters);
                 std::cout << "**Got the candidates**" << std::endl;

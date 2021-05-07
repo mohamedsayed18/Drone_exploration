@@ -20,7 +20,8 @@ change return of make cluster to vector<vector>>
 check shared pointers, to avoid repetation
 
 //TODO
-Consider leaf nodes of size higher than resolution size
+Consider leaf nodes of size higher than resolution size: expandNode() and account its leafs
+check bbxSet to check the size
 */
 #include <mapping.h>
 #include <explorer.h>
@@ -60,27 +61,40 @@ bool operator== (const octomath::Vector3 v1, const octomath::Vector3 v2)
     return (v1.x()==v2.x() &&  v1.y()==v2.y() && v1.y()==v2.y());
 }
 
-octomap::point3d_list check_neighbours(octomap::point3d p)
+octomap::point3d_list check_neighbours(octomap::point3d p, octomap::OcTree map)
 {
     /*
     TODO edit and use neighborkey = key;
     neighborkey[0] +=1; // neighbor in pos. x-direction
     OcTreeNode* result = octree.search(neighborkey);
+    rename to get_neighbours
     */ 
     //std::cout << "check neighbours" << std::endl;
     double octomap_res = 0.2;
-    octomap::point3d_list l;
+    int nu_unknowns = 0;
+    octomap::point3d_list l;    //list of the neighbours
+    octomap::OcTreeKey neighborkey = map.coordToKey(p);
 
-    for (double i = p.x()-octomap_res; i <= p.x()+octomap_res; i+=octomap_res)
+    for(int i=-1; i<=1; i++)
     {
-        for(double j = p.y()-octomap_res; j <= p.y()+octomap_res; j+=octomap_res)
+        for(int j=-1; j<=1; j++)
         {
-            if(i==p.x() && j== p.y()) continue;
-            l.push_back(octomap::point3d(i, j, p.z()));
-        }
+            for(int k=-1; k<=1; k++)
+            {
+                if(i==j==k==0)    //skip the node it self
+                    continue;
+                octomap::OcTreeKey n = neighborkey;
+                n[0]+=i; n[1]+=j; n[2]+=k;
+                l.push_back( map.keyToCoord(n));
+                if(!map.search(n))
+                {
+                    nu_unknowns++;
+                }
+            }
+        }   
     }
-
     return l;
+    //return nu_unknowns;
     
 }
 
@@ -101,25 +115,25 @@ octomap::point3d_list get_frontiers(octomap::OcTree map)
             print(freepoint, "Free point ");
             std::cout << "size " << it.getSize() << std::endl;
             
-
-            octomap::point3d_list neighbours = check_neighbours(freepoint);
-            
-            //std::cout << "Number of neighbours " << neighbours.size() << std::endl;
-
-            int Nu_unknowns = 0; 
-            for(auto i=neighbours.begin(); i != neighbours.end(); i++)
+            if(it.getSize() == 0.2) // TODO, Handle other sizes
             {
-                if(!map.search(*i))  // if node is not found in the tree
+                octomap::point3d_list neighbours = check_neighbours(freepoint, map);
+                int Nu_unknowns = 0; 
+                for(auto i=neighbours.begin(); i != neighbours.end(); i++)
                 {
-                    Nu_unknowns++;
+                    if(!map.search(*i))  // if node is not found in the tree
+                    {
+                        Nu_unknowns++;
+                    }
                 }
-            }
-            if(Nu_unknowns>0)   //Nu_u
-            {
-                frontiers.push_back(freepoint);
+                if(Nu_unknowns>0)   //Nu_u
+                {
+                    frontiers.push_back(freepoint);
+                }
             }
         }
     }
+    std::cout << "frontiers done " << frontiers.size() << std::endl;
     return frontiers;
 }
 
@@ -305,7 +319,7 @@ void rotate()
 
 }
 
-std::list<std::vector<octomap::point3d>> make_clusters(octomap::point3d_list frontiers)
+std::list<std::vector<octomap::point3d>> make_clusters(octomap::point3d_list frontiers, octomap::OcTree map)
 {
     std::list<std::vector<octomap::point3d>> cluster;
     
@@ -325,7 +339,7 @@ std::list<std::vector<octomap::point3d>> make_clusters(octomap::point3d_list fro
         {
             auto point = q.front();
             q.pop_back();
-            octomap::point3d_list neighbours = check_neighbours(point); //get its neighbours
+            octomap::point3d_list neighbours = check_neighbours(point, map); //get its neighbours
             for(auto i=neighbours.begin(); i != neighbours.end(); i++)
             {
                 auto it = std::find(frontiers.begin(), frontiers.end(), *i);
@@ -448,11 +462,10 @@ int main(int argc, char** argv)
             octomap::OcTree mymap = setOctomapFromBinaryMsg(srv.response.map);
             if (waypoints_pub.getNumSubscribers()>0)
             {
-                //trigger_rotate();
-                //ros::topic::waitForMessage<std_msgs::Bool>("/check/rotation");
+                trigger_rotate();
+                ros::topic::waitForMessage<std_msgs::Bool>("/check/rotation");
                 octomap::point3d_list frontiers = get_frontiers(mymap);
-                ros::shutdown();
-                std::list<std::vector<octomap::point3d>> clusters = make_clusters(frontiers);
+                std::list<std::vector<octomap::point3d>> clusters = make_clusters(frontiers, mymap);
                 std::vector<octomap::point3d> centers = get_candidates(clusters);
                 std::cout << "**Got the candidates**" << std::endl;
                 

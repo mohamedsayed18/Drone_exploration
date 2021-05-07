@@ -20,7 +20,8 @@
     <!-- vehicle model and world -->
     <arg name="est" default="ekf2"/>
     <arg name="vehicle" default="iris_rplidar"/>
-    <arg name="world" default="$(find drone_explorer)/worlds/cube.world"/>
+    <!--arg name="world" default="$(find drone_explorer)/worlds/cube.world"/-->
+    <arg name="world" default="$(find drone_explorer)/worlds/willowgarage.world"/>
     
     
     <arg name="sdf" default="$(find drone_sim)/models/$(arg vehicle)/$(arg vehicle).sdf"/>

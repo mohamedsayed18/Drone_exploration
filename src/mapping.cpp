@@ -22,6 +22,8 @@ check shared pointers, to avoid repetation
 //TODO
 Consider leaf nodes of size higher than resolution size: expandNode() and account its leafs
 check bbxSet to check the size
+Check neighbours and calculate the unknown of them at same loop
+getUnknownLeafCenters()
 */
 #include <mapping.h>
 #include <explorer.h>
@@ -101,8 +103,8 @@ octomap::point3d_list check_neighbours(octomap::point3d p, octomap::OcTree map)
 octomap::point3d_list get_frontiers(octomap::OcTree map)
 {
     // The limits to search for in the map
-    octomap::point3d min_point(-10, -10, -10);
-    octomap::point3d max_point(10, 10, 10);
+    octomap::point3d min_point(-4, -4, 0);
+    octomap::point3d max_point(4, 4, 2);
 
     octomap::point3d_list frontiers;    //list of frontiers
 
@@ -112,8 +114,8 @@ octomap::point3d_list get_frontiers(octomap::OcTree map)
         if(!map.isNodeOccupied(*it))   //check if the node is free
         {
             octomap::point3d freepoint = it.getCoordinate();
-            print(freepoint, "Free point ");
-            std::cout << "size " << it.getSize() << std::endl;
+            //print(freepoint, "Free point ");
+            //std::cout << "size " << it.getSize() << std::endl;
             
             if(it.getSize() == 0.2) // TODO, Handle other sizes
             {
@@ -209,7 +211,7 @@ bool goal_reached(octomap::point3d goal)
     
     double d = distance(position, goal);
     
-    if (d < 2)
+    if (d < 0.09)  //TODO: MAKE this as a parameter in my algorithm
     {
         return true;
     }
@@ -360,7 +362,10 @@ std::list<std::vector<octomap::point3d>> make_clusters(octomap::point3d_list fro
 std::vector<octomap::point3d> get_candidates(std::list<std::vector<octomap::point3d>> clusters)
 {
     /*
-    TODO: Maybe we do Mean or different way instead of centre 
+    TODO: 
+    Maybe we do Mean or different way instead of centre
+    Get the median for every axis separatly and then you got represtation of centre cluster.
+
     input: list of clusters
     return: centre of each cluster 
     */
@@ -384,22 +389,28 @@ octomap::point3d get_goal(std::vector<octomap::point3d> candidates, nav_msgs::Od
 {
     /*Here we should assign the criteria and give cost of every candidate
     some suggested criteria:
-    distance between the drone and this candidate
+    distance between the drone and this candidate (it should be the clear path distance)
+    TODO we can use BFS or any other algorthim to find the closest, instead of eculidean distance..
+    we can also integrate it with path planner so we don't calculate the path twice    
     Distance To edge of the exploration area(expected area to explore when reach this point)
     speed and angle desired by the drone to reach it
-    TODO we can use BFS or any other algorthim to find the closest, instead of eculidean distance..
-    we can also integrate it with path planner so we don't calculate the path twice
+    * Print the goal, why the goal is not in the range of leafs
     */
-    double min_distance = 0; //the maximum variable
+    double min_distance = 1000; //the maximum variable
+    double step_size = 1.5; // minimum distance to move in one step
     octomap::point3d closest_point;  //maximum point
 
    for(auto it = candidates.begin(); it != candidates.end(); it++)
    {
-       if(distance(position, *it) > min_distance)
+       if(distance(position, *it) > step_size)
        {
-           min_distance = distance(position, *it);
-           closest_point = *it;
+            if(distance(position, *it) < min_distance)
+            {
+                min_distance = distance(position, *it);
+                closest_point = *it;
+            }
        }
+
    }
    return closest_point;
 }
@@ -414,17 +425,24 @@ octomap::point3d get_goal(std::vector<octomap::point3d> candidates, geo_pose pos
     TODO we can use BFS or any other algorthim to find the closest, instead of eculidean distance..
     we can also integrate it with path planner so we don't calculate the path twice
     */
-    double min_distance = 0; //the maximum variable
+    double min_distance = 1000; //the maximum variable
+    double step_size = 1.5; // minimum distance to move in one step
     octomap::point3d closest_point;  //maximum point
 
    for(auto it = candidates.begin(); it != candidates.end(); it++)
    {
-       if(distance(*it, position) > min_distance)
+       if(distance(*it, position) > step_size)
        {
-           min_distance = distance(*it, position);
-           closest_point = *it;
+            if(distance(*it, position) < min_distance)
+            {
+                min_distance = distance(*it, position);  //TODO: calculate free path distance
+                closest_point = *it;
+            }
        }
+
    }
+   print(closest_point,"Next goal");
+   std::cout << "Distance to: " << min_distance << std::endl;
    return closest_point;
 }
 

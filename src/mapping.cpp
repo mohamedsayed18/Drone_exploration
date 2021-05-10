@@ -32,6 +32,8 @@ getUnknownLeafCenters()
 static octomap::OcTree* ourmap; // octree map
 ros::Publisher waypoints_pub;   //publisher
 ros::Publisher myrotate, trigger_pub;   //publisher
+double step_size = 1;
+
 void reg_trigger()
 {
     /*
@@ -103,8 +105,8 @@ octomap::point3d_list check_neighbours(octomap::point3d p, octomap::OcTree map)
 octomap::point3d_list get_frontiers(octomap::OcTree map)
 {
     // The limits to search for in the map
-    octomap::point3d min_point(-4, -4, 0);
-    octomap::point3d max_point(4, 4, 2);
+    octomap::point3d min_point(-10, -10, 1.5);
+    octomap::point3d max_point(10, 10, 2);
 
     octomap::point3d_list frontiers;    //list of frontiers
 
@@ -205,13 +207,14 @@ void print(geometry_msgs::PoseStamped p, std::string title)
 
 bool goal_reached(octomap::point3d goal)
 {
+    double margin = 0.1;
     //TODO shared pointer repetation
     boost::shared_ptr<nav_msgs::Odometry const> msg =  ros::topic::waitForMessage<nav_msgs::Odometry>("/planning/current_state");
     nav_msgs::Odometry position =  *(msg);
     
     double d = distance(position, goal);
     
-    if (d < 0.09)  //TODO: MAKE this as a parameter in my algorithm
+    if (d < margin)  //TODO: MAKE this as a parameter in my algorithm
     {
         return true;
     }
@@ -384,10 +387,10 @@ std::vector<octomap::point3d> get_candidates(std::list<std::vector<octomap::poin
     std::cout <<"Number of nodes in all clusters " << clu_size << std::endl;
     return centers;
 }
-
+/*
 octomap::point3d get_goal(std::vector<octomap::point3d> candidates, nav_msgs::Odometry position)
 {
-    /*Here we should assign the criteria and give cost of every candidate
+    Here we should assign the criteria and give cost of every candidate
     some suggested criteria:
     distance between the drone and this candidate (it should be the clear path distance)
     TODO we can use BFS or any other algorthim to find the closest, instead of eculidean distance..
@@ -395,9 +398,9 @@ octomap::point3d get_goal(std::vector<octomap::point3d> candidates, nav_msgs::Od
     Distance To edge of the exploration area(expected area to explore when reach this point)
     speed and angle desired by the drone to reach it
     * Print the goal, why the goal is not in the range of leafs
-    */
+    
     double min_distance = 1000; //the maximum variable
-    double step_size = 1.5; // minimum distance to move in one step
+    //step_size = 1; // minimum distance to move in one step
     octomap::point3d closest_point;  //maximum point
 
    for(auto it = candidates.begin(); it != candidates.end(); it++)
@@ -414,6 +417,7 @@ octomap::point3d get_goal(std::vector<octomap::point3d> candidates, nav_msgs::Od
    }
    return closest_point;
 }
+*/
 
 octomap::point3d get_goal(std::vector<octomap::point3d> candidates, geo_pose position)
 {
@@ -426,7 +430,7 @@ octomap::point3d get_goal(std::vector<octomap::point3d> candidates, geo_pose pos
     we can also integrate it with path planner so we don't calculate the path twice
     */
     double min_distance = 1000; //the maximum variable
-    double step_size = 1.5; // minimum distance to move in one step
+    //double step_size = 1; // minimum distance to move in one step
     octomap::point3d closest_point;  //maximum point
 
    for(auto it = candidates.begin(); it != candidates.end(); it++)
@@ -499,6 +503,7 @@ int main(int argc, char** argv)
                     std::cout <<"First message got from current state" << std::endl;
                     goal = get_goal(centers, position);
                 }
+                /*
                 else
                 {
                     //TODO I can check if the topic exsit 
@@ -507,12 +512,24 @@ int main(int argc, char** argv)
                     std::cout <<"message got from current state" << std::endl;
                     goal = get_goal(centers, position);
                 }
+                */
                 print(goal, "The next goal");
-                publish_point(goal);    //publish point 
+                publish_point(goal);    //publish point
+                ros::Time start_time = ros::Time::now();
                 while (! goal_reached(goal))
                 {
+                    //TODO: write a ros timer if it didn't reach the goal after time terminate
                     //loop_rate.sleep();
                     //std::cout << "Moving to the goal"<< std::endl;
+                    ros::Time current_time = ros::Time::now();
+                    std::cout << "diff_time"<< (current_time - start_time).toSec() <<std::endl;
+                    if ((current_time - start_time).toSec() > 50.0)
+                    {
+                        std::cout << "Can't reach the target for 1 minute"<<std::endl;
+                        step_size +=0.1;
+                        break;
+
+                    }
                 }
                 std::cout << "goal reached"<<std::endl;
 

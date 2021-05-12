@@ -24,6 +24,7 @@ Consider leaf nodes of size higher than resolution size: expandNode() and accoun
 check bbxSet to check the size
 Check neighbours and calculate the unknown of them at same loop
 getUnknownLeafCenters()
+getNumLeafNodes ()
 */
 #include <mapping.h>
 #include <explorer.h>
@@ -458,6 +459,17 @@ octomap::OcTree setOctomapFromBinaryMsg(const octomap_msgs::Octomap& msg)
 
 int main(int argc, char** argv)
 {
+    // Create a file to write data on
+    std::fstream fout;
+    fout.open("frontiers.csv", std::fstream::out);
+    fout << "Un_Leafs, " << " Leaf_nodes, " << "frontiers, " //the header
+    << "nu_clusters, " << "time, " 
+    << "x, " << "y, " << "z, " << "duration" << "\n";
+    // The limits to search for in the map
+    octomap::point3d_list un_centers;
+    octomap::point3d min_point(-10, -10, 1.5);
+    octomap::point3d max_point(10, 10, 2);
+
     bool first_time = true;
     ros::init(argc, argv, "mapping_node");
     ros::NodeHandle n;
@@ -486,9 +498,15 @@ int main(int argc, char** argv)
             {
                 trigger_rotate();
                 ros::topic::waitForMessage<std_msgs::Bool>("/check/rotation");
+                mymap.getUnknownLeafCenters(un_centers, min_point, max_point);
+                fout << un_centers.size() << ", ";
+                fout << mymap.getNumLeafNodes() << ", ";
                 octomap::point3d_list frontiers = get_frontiers(mymap);
+                //fout << "f_size, " << frontiers.size() << ", ";
                 std::list<std::vector<octomap::point3d>> clusters = make_clusters(frontiers, mymap);
                 std::vector<octomap::point3d> centers = get_candidates(clusters);
+                fout << centers.size() << ", ";
+                
                 std::cout << "**Got the candidates**" << std::endl;
                 
                 //Get the drone position, and the goal
@@ -516,12 +534,16 @@ int main(int argc, char** argv)
                 print(goal, "The next goal");
                 publish_point(goal);    //publish point
                 ros::Time start_time = ros::Time::now();
+                fout << start_time << ", ";
+                fout << goal.x() << ", " << goal.y() << ", " << goal.z();
+
                 while (! goal_reached(goal))
                 {
                     //TODO: write a ros timer if it didn't reach the goal after time terminate
                     //loop_rate.sleep();
                     //std::cout << "Moving to the goal"<< std::endl;
                     ros::Time current_time = ros::Time::now();
+                    
                     std::cout << "diff_time"<< (current_time - start_time).toSec() <<std::endl;
                     if ((current_time - start_time).toSec() > 50.0)
                     {
@@ -532,7 +554,9 @@ int main(int argc, char** argv)
                     }
                 }
                 std::cout << "goal reached"<<std::endl;
-
+                ros::Time end_time = ros::Time::now();
+                fout << (end_time - start_time).toSec() << ", ";
+                fout << "\n";
                 // Do 360 rotation
                 //trigger_rotate();
                 //reg_trigger();
@@ -547,5 +571,6 @@ int main(int argc, char** argv)
         }
     }
 
+    fout.close();
     return 0;
 }

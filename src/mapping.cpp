@@ -35,6 +35,9 @@ ros::Publisher waypoints_pub;   //publisher
 ros::Publisher myrotate, trigger_pub;   //publisher
 double step_size = 1;
 
+// File to write to
+std::fstream fout;
+
 void reg_trigger()
 {
     /*
@@ -91,16 +94,67 @@ octomap::point3d_list check_neighbours(octomap::point3d p, octomap::OcTree map)
                 octomap::OcTreeKey n = neighborkey;
                 n[0]+=i; n[1]+=j; n[2]+=k;
                 l.push_back( map.keyToCoord(n));
+                /*
                 if(!map.search(n))
                 {
                     nu_unknowns++;
                 }
+                */
             }
         }   
     }
     return l;
     //return nu_unknowns;
     
+}
+
+std::vector<octomap::point3d> get_fron_direct(octomap::OcTree map)
+{
+    /*
+    Get the frontiers with no cluster
+    */
+    // The limits to search for in the map
+    octomap::point3d min_point(-10, -10, 1.5);
+    octomap::point3d max_point(10, 10, 2);
+
+    //octomap::point3d_list frontiers;    //list of frontiers
+    std::vector<octomap::point3d> frontiers;
+
+    for (octomap::OcTree::leaf_bbx_iterator it = map.begin_leafs_bbx(min_point, max_point);
+    it != map.end_leafs_bbx(); ++it) 
+    {   
+        if(!map.isNodeOccupied(*it))   //check if the node is free
+        {
+            octomap::point3d freepoint = it.getCoordinate();
+            //print(freepoint, "Free point ");
+            //std::cout << "size " << it.getSize() << std::endl;
+            
+            if(it.getSize() == 0.2) // TODO, Handle other sizes
+            {
+                octomap::point3d_list neighbours = check_neighbours(freepoint, map);
+                int Nu_unknowns = 0; 
+                for(auto i=neighbours.begin(); i != neighbours.end(); i++)
+                {
+                    if(!map.search(*i))  // if node is not found in the tree
+                    {
+                        Nu_unknowns++;
+                    }
+                }
+                if(Nu_unknowns>0)   //Nu_u
+                {
+                    frontiers.push_back(freepoint);
+                }
+            }
+            else
+            {
+                octomap::OcTreeNode* n = map.search(freepoint);
+                map.expandNode(n);
+            }
+            
+        }
+    }
+    std::cout << "frontiers done " << frontiers.size() << std::endl;
+    return frontiers;
 }
 
 octomap::point3d_list get_frontiers(octomap::OcTree map)
@@ -434,9 +488,14 @@ octomap::point3d get_goal(std::vector<octomap::point3d> candidates, geo_pose pos
     //double step_size = 1; // minimum distance to move in one step
     octomap::point3d closest_point;  //maximum point
 
+    if (candidates.size())
+    {
+        std::cout << "empty candidates" << "\n";
+    }
+    
    for(auto it = candidates.begin(); it != candidates.end(); it++)
    {
-       if(distance(*it, position) > step_size)
+       if((distance(*it, position) > step_size) )
        {
             if(distance(*it, position) < min_distance)
             {
@@ -448,6 +507,8 @@ octomap::point3d get_goal(std::vector<octomap::point3d> candidates, geo_pose pos
    }
    print(closest_point,"Next goal");
    std::cout << "Distance to: " << min_distance << std::endl;
+   fout << closest_point.x() << ", " << closest_point.y() << ", " << closest_point.z() <<", ";
+   fout << min_distance << ", " ;
    return closest_point;
 }
 
@@ -460,14 +521,13 @@ octomap::OcTree setOctomapFromBinaryMsg(const octomap_msgs::Octomap& msg)
 int main(int argc, char** argv)
 {
     // Create a file to write data on
-    std::fstream fout;
-    fout.open("frontiers.csv", std::fstream::out);
-    fout << "Un_Leafs, " << " Leaf_nodes, " << "frontiers, " //the header
-    << "nu_clusters, " << "time, " 
-    << "x, " << "y, " << "z, " << "duration" << "\n";
+    fout.open("cube_final0.csv", std::fstream::out);
+    fout << "map_size, " << "Un_Leafs, " << " Leaf_nodes, " << "frontiers, " //the header
+    << "nu_clusters, " << "x, " << "y, " << "z, " << "distance, "
+    << "time, " << "duration" << "\n";
     // The limits to search for in the map
     octomap::point3d_list un_centers;
-    octomap::point3d min_point(-10, -10, 1.5);
+    octomap::point3d min_point(-10, -10, 1.5);  //TODO make global
     octomap::point3d max_point(10, 10, 2);
 
     bool first_time = true;
@@ -499,12 +559,14 @@ int main(int argc, char** argv)
                 trigger_rotate();
                 ros::topic::waitForMessage<std_msgs::Bool>("/check/rotation");
                 mymap.getUnknownLeafCenters(un_centers, min_point, max_point);
+                fout << mymap.size()    << ", ";
                 fout << un_centers.size() << ", ";
                 fout << mymap.getNumLeafNodes() << ", ";
-                octomap::point3d_list frontiers = get_frontiers(mymap);
-                //fout << "f_size, " << frontiers.size() << ", ";
-                std::list<std::vector<octomap::point3d>> clusters = make_clusters(frontiers, mymap);
-                std::vector<octomap::point3d> centers = get_candidates(clusters);
+                //octomap::point3d_list frontiers = get_frontiers(mymap);
+                std::vector<octomap::point3d> centers = get_fron_direct(mymap);
+                fout << centers.size() << ", ";
+                //std::list<std::vector<octomap::point3d>> clusters = make_clusters(frontiers, mymap);
+                //std::vector<octomap::point3d> centers = get_candidates(clusters);
                 fout << centers.size() << ", ";
                 
                 std::cout << "**Got the candidates**" << std::endl;
@@ -535,7 +597,6 @@ int main(int argc, char** argv)
                 publish_point(goal);    //publish point
                 ros::Time start_time = ros::Time::now();
                 fout << start_time << ", ";
-                fout << goal.x() << ", " << goal.y() << ", " << goal.z();
 
                 while (! goal_reached(goal))
                 {
@@ -555,7 +616,7 @@ int main(int argc, char** argv)
                 }
                 std::cout << "goal reached"<<std::endl;
                 ros::Time end_time = ros::Time::now();
-                fout << (end_time - start_time).toSec() << ", ";
+                fout << (end_time - start_time).toSec();
                 fout << "\n";
                 // Do 360 rotation
                 //trigger_rotate();

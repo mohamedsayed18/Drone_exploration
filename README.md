@@ -6,7 +6,7 @@ Exploration using UAV in ROS
 This is a frontier based exploration using iris drone form the PX4 package and building the map using
 Octomap
 
-For more details You can check the paper  [here](https://drive.google.com/file/d/1kNFvRjTuL8sYt747fcMc0lfcOLrQrS1t/view?usp=sharing)
+For more details You can check the full report  [here](https://drive.google.com/file/d/1FAURn1JG06RQMs7Zly73yV8BzjOC1cBH/view?usp=sharing)
 
 You can check the video [here](https://youtu.be/lmGbVFeafbY)
 
